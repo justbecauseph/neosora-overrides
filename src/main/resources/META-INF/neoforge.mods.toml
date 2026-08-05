@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''
+${mod_description}
+
+Patches three third-party mod bugs that were crashing the NeoSora server. Adds no content
+and registers nothing. Every patch is gated on the mod it fixes actually being installed,
+so this jar is safe to keep in the pack even if those mods are removed.
+'''
+
+[[mixins]]
+config = "${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+# NOTE: the patched mods (progressivestages, ezvcsurvival, tensura_minesura) are
+# deliberately NOT declared as dependencies. They are optional at runtime and each patch
+# is skipped cleanly if its mod is absent - see NeoSoraMixinPlugin.

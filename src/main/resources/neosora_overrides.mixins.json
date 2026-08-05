@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "dev.neosora.overrides.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "dev.neosora.overrides.NeoSoraMixinPlugin",
+  "mixins": [
+    "EzvcSurvivalSculkVibrationHelperMixin",
+    "ProgressiveStagesRegressionDataMixin",
+    "TensuraMinesuraUltimateWeaponHandlerMixin"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
