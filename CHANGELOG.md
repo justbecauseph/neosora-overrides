@@ -7,6 +7,31 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.1] — 2026-08-06
+
+### Fixed
+
+**Startup report gave false `[FAILED ]` verdicts for correct patches.**
+
+Mixin transforms classes lazily, on first load. `postApply` therefore does not fire until
+something actually touches the target class, so a patch that is perfectly fine reads as
+unapplied at server start if nothing has reached it yet.
+
+Observed on the first deploy: `UltimateWeaponHandler` is an event handler registered during
+mod construction, so it was loaded and correctly reported `[ACTIVE ]`. `StageRegressionData`
+(not touched until a stage is queried) and `SculkVibrationHelper` (not touched until a player
+speaks) both reported `[FAILED ]` despite being applied correctly — confirmed via
+`jcmd VM.class_hierarchy`, which showed 572 loaded `com.enviouse` classes but not
+`StageRegressionData`.
+
+The report now force-loads each target class with `Class.forName(name, false, loader)` before
+building its output. That triggers transformation without running the target's static
+initialiser, so the verdict is deterministic instead of a race against gameplay.
+
+No change to the three patches themselves.
+
+---
+
 ## [1.0.0] — 2026-08-06
 
 Initial release. Patches three independent third-party mod bugs that together produced five

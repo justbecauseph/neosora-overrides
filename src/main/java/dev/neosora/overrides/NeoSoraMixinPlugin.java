@@ -38,6 +38,22 @@ public class NeoSoraMixinPlugin implements IMixinConfigPlugin {
     /** Mixin simple name -> short description, for the startup report. */
     private static final Map<String, String> DESCRIPTIONS = new LinkedHashMap<>();
 
+    /**
+     * Mixin simple name -> the class it patches.
+     *
+     * <p>Needed because Mixin transforms lazily, on first class load. {@code postApply} does
+     * not fire until something actually touches the target, so a patch that is perfectly fine
+     * looks unapplied at server start if its class has not been reached yet. Observed on the
+     * first deploy: {@code UltimateWeaponHandler} was loaded (it is an event handler, so it is
+     * registered during mod construction) and reported ACTIVE, while
+     * {@code StageRegressionData} and {@code SculkVibrationHelper} - which are not touched
+     * until a stage is queried or a player speaks - reported FAILED despite being correct.
+     *
+     * <p>{@link #ensureTargetsTransformed()} force-loads these before the report is built so
+     * the answer is deterministic rather than a race against gameplay.
+     */
+    private static final Map<String, String> TARGET_CLASSES = new LinkedHashMap<>();
+
     static {
         GATES.put("ProgressiveStagesRegressionDataMixin", "progressivestages");
         GATES.put("EzvcSurvivalSculkVibrationHelperMixin", "ezvcsurvival");
@@ -49,6 +65,13 @@ public class NeoSoraMixinPlugin implements IMixinConfigPlugin {
                 "SculkVibrationHelper skips unloaded chunks (fixes sync chunk-load deadlock)");
         DESCRIPTIONS.put("TensuraMinesuraUltimateWeaponHandlerMixin",
                 "UltimateWeaponHandler no longer forces loot unpack (fixes StackOverflow with Lootr)");
+
+        TARGET_CLASSES.put("ProgressiveStagesRegressionDataMixin",
+                "com.enviouse.progressivestages.server.triggers.StageRegressionData");
+        TARGET_CLASSES.put("EzvcSurvivalSculkVibrationHelperMixin",
+                "com.armilp.ezvcsurvival.sculk.SculkVibrationHelper");
+        TARGET_CLASSES.put("TensuraMinesuraUltimateWeaponHandlerMixin",
+                "com.joaomaia.tensura_minesura.event.UltimateWeaponHandler");
     }
 
     private static final Set<String> ENABLED = new LinkedHashSet<>();
@@ -109,6 +132,8 @@ public class NeoSoraMixinPlugin implements IMixinConfigPlugin {
      * Human-readable summary of what is and is not actually patched. Logged at server start.
      */
     public static List<String> buildReport() {
+        ensureTargetsTransformed();
+
         List<String> lines = new java.util.ArrayList<>();
         lines.add("=== NeoSora Overrides: active patches ===");
 
@@ -129,6 +154,36 @@ public class NeoSoraMixinPlugin implements IMixinConfigPlugin {
             }
         }
         return lines;
+    }
+
+    /**
+     * Force each not-yet-applied target class to load, so Mixin transforms it and
+     * {@code postApply} runs before the report is built.
+     *
+     * <p>Uses {@code initialize = false}: the class is defined and transformed, but its static
+     * initialiser does not run. Loading is what triggers transformation, so this is enough to
+     * get a truthful answer without executing any of the target mod's code earlier than it
+     * would otherwise run.
+     *
+     * <p>Failures here are deliberately quiet at WARN rather than fatal - being unable to
+     * verify a patch is not a reason to take a server down.
+     */
+    private static void ensureTargetsTransformed() {
+        for (Map.Entry<String, String> entry : TARGET_CLASSES.entrySet()) {
+            String simple = entry.getKey();
+
+            // Only bother with patches whose mod is present and which have not already applied.
+            if (!ENABLED.contains(simple) || APPLIED.contains(simple)) {
+                continue;
+            }
+
+            try {
+                Class.forName(entry.getValue(), false, NeoSoraMixinPlugin.class.getClassLoader());
+            } catch (Throwable t) {
+                LOGGER.warn("[NeoSora Overrides] could not load {} to verify {}: {}",
+                        entry.getValue(), simple, t.toString());
+            }
+        }
     }
 
     /** True if any gated mixin was enabled but never applied. */
